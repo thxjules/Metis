@@ -1,0 +1,17 @@
+# Entorno virtual y dependencias
+venv/
+.env
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+# Logs y temporales
+*.log
+*.tmp
+*.swp
+*.bak
+__pycache__/
+*.pyc
+.vscode/
+.idea/
+.models/
