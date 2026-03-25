@@ -8,6 +8,7 @@ def build_event(
     call_id: str,
     payload: dict,
     risk_score: int | None = None,
+    interest_score: int | None = None,
     call_status: str = "open",
 ):
     return {
@@ -18,8 +19,8 @@ def build_event(
         "call": {
             "id": call_id,
             "risk_score": risk_score,
+            "interest_score": interest_score,
             "status": call_status
         },
         "payload": payload
     }
-

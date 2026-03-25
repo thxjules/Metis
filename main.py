@@ -20,3 +20,4 @@ class Chunk(BaseModel):
 @app.post("/ingest")
 async def ingest(chunk: Chunk):
     return service.ingest(chunk.dict())
+
