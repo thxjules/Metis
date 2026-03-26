@@ -75,20 +75,31 @@ class IngestService:
                 event_type=f"extreme_{hostility_type}",
                 call_id=call_id,
                 payload={"strategy": "neutral", "previous_strategy": "neutral"},
-                risk_score=new_score, 
+                risk_score=new_score,
+                interest_score=interest_score,
                 call_status="open",
             )
             self.repo.push_event(call_id, event_emmited)
 
-
         close_event = is_call_closing(text)
 
         if close_event:
-            self.repo.set_status(call_id, "closed")
+            current_status = self.repo.get_call(call_id).get("status", "active")
+            
+            if current_status != "closed":
+                self.repo.set_status(call_id, "closed")
+                
+                event_emmited = build_event(
+                    event_type="call_closed",
+                    call_id=call_id,
+                    payload={"closing_phrase": close_event, "strategy": "neutral", "previous_strategy": "neutral"},
+                    risk_score=new_score, 
+                    call_status="closed",
+                )
+                self.repo.push_event(call_id, event_emmited)
 
         # Ultimo timestamp para lógica temporal
         self.repo.set_last_ts(call_id, ts)
-
 
         return {
             "call_id": call_id,

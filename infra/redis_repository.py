@@ -72,6 +72,9 @@ class RedisRepository:
         self.client.hset(self._call_key(call_id), "previous_strategy", previous_strategy)
         self.client.hset(self._call_key(call_id), "strategy", strategy)
 
+    def set_close_call(self, call_id: str):
+        self.set_status(call_id, "closed")
+    
     #ventana de contexto (sliding window)
     def push_chunk(self, call_id: str, text: str, max_len: int = 5):
         key = self._chunks_key(call_id)

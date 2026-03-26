@@ -1,4 +1,4 @@
-# domain/engine.p
+# domain/engine.py
 import re
 import unicodedata
 
@@ -6,7 +6,7 @@ RISK_THRESHOLD = 5
 INTEREST_THRESHOLD = 10
 
 INTEREST_PHRASES = {
-    "interesante":3,
+    "interesante": 3,
     "me gusta": 2,
     "me interesa": 3,
     "eso suena bien": 1,
@@ -35,20 +35,9 @@ INSULT_PHRASES = {
     "estupido": 5,
     "imbecil": 5,
     "inutil": 5,
-    "mierda": 5, 
-    "joder": 5, 
+    "mierda": 5,
     "pendejo": 5,
 }
-
-AGGRESSION_PHRASES = {
-    "no me joda": 5, 
-    "hijo de": 5,
-    "vayase a la": 5, 
-    "quitese": 5, 
-    "no sea":5 , 
-    "callese": 5,
-}
-
 REFUSAL_PHRASES = {
     "no me llame mas": 5,
     "no quiero hablar": 3,
@@ -59,69 +48,59 @@ REFUSAL_PHRASES = {
     "saquenme de esta lista": 5,
 }
 
+AGGRESSION_REGEX = re.compile(
+    r"\b(no me joda|quitese|callese|hijo de (?:puta|perra)|vayase a la (?:mierda|porra|chingada))\b"
+)
 
-CLOSING_PHRASES = [
-    "adios",
-    "hasta luego",
-    "chao",
-    "nos vemos",
-    "espero la informacion",
-    "llamame luego",
-    "gracias por tu tiempo",
-    "gracias por la informacion",
-    "gracias por tu ayuda",
-]
+CLOSING_REGEX = re.compile(
+    r"\b(adios|hasta luego|chao|nos vemos|espero la informacion|llamame luego|gracias por tu tiempo|gracias por la informacion|gracias por tu ayuda)\b"
+)
 
 
 def normalize(text: str) -> str:
     text = text.lower()
-    text = ''.join(
-        c for c in unicodedata.normalize('NFD', text)
-        if unicodedata.category(c) != 'Mn'
+    text = "".join(
+        c for c in unicodedata.normalize("NFD", text) if unicodedata.category(c) != "Mn"
     )
     return re.sub(r"[^\w\s]", "", text)
 
 
-# SOLO calcula delta (no toca estado)
 def calculate_risk_delta(text_window: list[str]) -> tuple[int, int]:
     text = normalize(" ".join(text_window))
-    risk_delta = 0
-    interest_delta = 0
 
-    for phrase, weight in RISK_PHRASES.items():
-        if re.search(rf"\b{phrase}\b", text):
-            risk_delta += weight
+    risk_delta = sum(
+        weight
+        for phrase, weight in RISK_PHRASES.items()
+        if re.search(rf"\b{phrase}\b", text)
+    )
 
-    for phrase, weight in INTEREST_PHRASES.items():
-        if phrase == "me interesa" and re.search(r"\bno\s+me\s+interesa\b", text):
-            continue
-            
-        if re.search(rf"\b{phrase}\b", text):
-            interest_delta += abs(weight)
+    interest_delta = sum(
+        weight
+        for phrase, weight in INTEREST_PHRASES.items()
+        if not (phrase == "me interesa" and "no me interesa" in text)
+        and re.search(rf"\b{phrase}\b", text)
+    )
 
     return risk_delta, interest_delta
 
 
-#cierre por hostilidad
 def detect_extreme_hostility(text: str) -> tuple[str, int] | None:
     text_norm = normalize(text)
-    for phrase in INSULT_PHRASES.keys():
+
+    for phrase, weight in INSULT_PHRASES.items():
         if re.search(rf"\b{phrase}\b", text_norm):
-            return ("insult", INSULT_PHRASES[phrase])
-    for phrase in AGGRESSION_PHRASES.keys():
+            return ("insult", weight)
+
+    if AGGRESSION_REGEX.search(text_norm):
+        return ("aggression", 5)
+
+    for phrase, weight in REFUSAL_PHRASES.items():
         if re.search(rf"\b{phrase}\b", text_norm):
-            return ("aggression", AGGRESSION_PHRASES[phrase])
-    for phrase in REFUSAL_PHRASES.keys():
-        if re.search(rf"\b{phrase}\b", text_norm):
-            return ("refusal", REFUSAL_PHRASES[phrase])
+            return ("refusal", weight)
+
     return None
 
-# SOLO detecta cierre
+
 def is_call_closing(text: str) -> str | None:
-    text_norm = normalize(text)
-
-    for phrase in CLOSING_PHRASES:
-        if phrase in text_norm:
-            return phrase
-
-    return None
+    match = CLOSING_REGEX.search(normalize(text))
+    return match.group(0) if match else None
