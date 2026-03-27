@@ -12,6 +12,8 @@ class Chunk(BaseModel):
     call_id: str
     chunk_id: str
     text: str
+    agent_id: str
+    campaign: str
     ts: int
     is_final: bool
     speaker: str

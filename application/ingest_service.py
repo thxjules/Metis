@@ -9,28 +9,26 @@ class IngestService:
 
     def ingest(self, payload: dict):
         call_id = payload["call_id"]
-        chunk_id = payload.get("chunk_id", str(call_id))  # asegurar id
+        chunk_id = payload.get("chunk_id", str(call_id))  
+        agent_id = payload.get("agent_id", "unknown_agent")
+        campaign = payload.get("campaign", "unknown_campaign")
         text = payload["text"]
         ts = payload.get("ts", 0)
         is_final = payload.get("is_final", True)
 
-        # 1. Inicializar llamada
         self.repo.init_call(call_id)
 
-        # 2. Idempotencia
         if self.repo.is_processed(call_id, chunk_id):
             return {"status": "duplicate"}
 
         self.repo.mark_processed(call_id, chunk_id)
 
-        # 3. Ignorar partials
         if not is_final:
             return {"status": "partial_ignored"}
 
-        # 4. Ventana deslizante
         self.repo.push_chunk(call_id, text)
+        self.repo.set_silence_emitted(call_id, False)
 
-        # 5. Procesar riesgo usando calculate_risk_delta
         risk_delta, interest_delta = calculate_risk_delta([text])
 
         if risk_delta != 0:
@@ -41,7 +39,6 @@ class IngestService:
 
         new_score = int(self.repo.get_call(call_id).get("risk_score", 0))
 
-        # Emitir evento si se supera el umbral de riesgo (solo la primera vez)
         if new_score > RISK_THRESHOLD and not self.repo.is_risk_emitted(call_id):
             self.repo.set_risk_emitted(call_id, True)
             event_emmited = build_event(
@@ -53,7 +50,6 @@ class IngestService:
             )
             self.repo.push_event(call_id, event_emmited)
 
-        # Emitir evento si se supera el umbral de interés 
         interest_score = int(self.repo.get_call(call_id).get("interest_score", 0))
         if interest_score > INTEREST_THRESHOLD and not self.repo.is_interest_emitted(call_id):
             self.repo.set_interest_emitted(call_id, True)
@@ -67,7 +63,6 @@ class IngestService:
             self.repo.push_event(call_id, event_emmited)
        
 
-        # 6. emitir evento por hostilidad
         hostility_result = detect_extreme_hostility(text)
         if hostility_result:
             hostility_type, hostility_score = hostility_result
@@ -80,6 +75,22 @@ class IngestService:
                 call_status="open",
             )
             self.repo.push_event(call_id, event_emmited)
+
+        silence_active = self.repo.is_silence_emitted(call_id)
+
+        last_ts = int(self.repo.get_call(call_id).get("last_ts", 0))
+        if ts - last_ts > 10 and silence_active == False:  
+            event_emmited = build_event(
+                event_type="long_silence",
+                call_id=call_id,
+                payload={"strategy": "neutral", "previous_strategy": "neutral", "silence_duration": ts - last_ts},
+                risk_score=new_score,
+                interest_score=interest_score,
+                call_status="open",
+            )
+            self.repo.push_event(call_id, event_emmited)
+            self.repo.set_silence_emitted(call_id, True)
+
 
         close_event = is_call_closing(text)
 
@@ -98,7 +109,6 @@ class IngestService:
                 )
                 self.repo.push_event(call_id, event_emmited)
 
-        # Ultimo timestamp para lógica temporal
         self.repo.set_last_ts(call_id, ts)
 
         return {
@@ -110,6 +120,8 @@ class IngestService:
                 "risk_threshold_exceeded": self.repo.is_risk_emitted(call_id),
                 "interest_threshold_exceeded": self.repo.is_interest_emitted(call_id),
                 "extreme_hostility": f"extreme_{hostility_type}" if hostility_result else None,
+                "long_silence": (ts - last_ts) > 10 if last_ts > 0 else False,
                 "call_closing": close_event is not None
+
             } 
         }

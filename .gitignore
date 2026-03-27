@@ -15,3 +15,6 @@ __pycache__/
 .vscode/
 .idea/
 .models/
+.vosk-model-es-0.42/
+.vosk-model-small-es-0.42/
+.notas.md

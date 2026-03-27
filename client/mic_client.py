@@ -10,7 +10,7 @@ from domain.speaker_role import SpeakerRole
 
 BACKEND_URL = "http://127.0.0.1:8000"
 SAMPLE_RATE = 48000
-MODEL_PATH = "models/vosk-model-es-0.42"
+MODEL_PATH = "models/vosk-model-small-es-0.42"
 
 call_id = str(uuid.uuid4())
 
@@ -31,6 +31,8 @@ def main():
     def callback(indata, frames, time, status):
         audio_queue.put(bytes(indata))
 
+    agent_id = input("Ingrese el ID del agente: ")
+    campaign = input("Ingrese el nombre de la campaña: ")
     with sd.RawInputStream(
         samplerate=SAMPLE_RATE,
         blocksize=48000,
@@ -56,6 +58,8 @@ def main():
                     payload = {
                         "call_id": call_id,
                         "chunk_id": str(uuid.uuid4()),
+                        "agent_id": agent_id,
+                        "campaign": campaign,
                         "text": text,
                         "speaker": SpeakerRole.UNKNOWN.value,
                         "ts": int(time.time()),

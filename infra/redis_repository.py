@@ -21,7 +21,7 @@ class RedisRepository:
 
     def mark_processed(self, call_id: str, chunk_id: str):
         self.client.sadd(self._processed_key(call_id), chunk_id)
-        self.client.expire(self._processed_key(call_id), 3600)
+        self.client.expire(self._processed_key(call_id), 1800)
 
     #Estado
     def init_call(self, call_id: str):
@@ -37,7 +37,7 @@ class RedisRepository:
                 "previous_strategy": "neutral",
                 "last_ts": 0
             })
-            self.client.expire(key, 3600)
+            self.client.expire(key, 1800)
 
     def increment_risk(self, call_id: str, delta: int) -> int:
         return self.client.hincrby(self._call_key(call_id), "risk_score", delta)
@@ -66,6 +66,13 @@ class RedisRepository:
     def set_interest_emitted(self, call_id: str, emitted: bool):
         self.client.hset(self._call_key(call_id), "interest_emitted", str(emitted).lower())
 
+    def is_silence_emitted(self, call_id: str) -> bool:
+        return self.client.hget(self._call_key(call_id), "silence_emitted") == "true"
+    
+    def set_silence_emitted(self, call_id: str, emitted: bool):
+        self.client.hset(self._call_key(call_id), "silence_emitted", str(emitted).lower())
+
+
     def set_strategy(self, call_id: str, strategy: str):
         call = self.get_call(call_id)
         previous_strategy = call.get("strategy", "neutral")
@@ -80,13 +87,15 @@ class RedisRepository:
         key = self._chunks_key(call_id)
         self.client.rpush(key, text)
         self.client.ltrim(key, -max_len, -1)
-        self.client.expire(key, 3600)
+        self.client.expire(key, 1800)
     
     def push_event(self, call_id: str, event: dict, max_len: int = 20):
         key = f"{self._call_key(call_id)}:events"
         self.client.rpush(key, json.dumps(event))
         self.client.ltrim(key, -max_len, -1)
-        self.client.expire(key, 3600)
+        self.client.expire(key, 1800)
 
     def get_window(self, call_id: str):
         return self.client.lrange(self._chunks_key(call_id), 0, -1)
+
+        
